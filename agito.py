@@ -598,6 +598,17 @@ def reflow_text(path, entry, message):
 
 	return "\n".join(result)
 
+def branch_info_notes(commit, path, entry):
+	"""Adds Subversion branch info to Git notes.
+
+	Args:
+	  commit: Commit object.
+	  path: Path of the branch within Subversion.
+	  entry: Log entry with the details of this commit.
+	"""
+	note = "%s@%i" % (str(path), entry.revision.number)
+	print("git notes add %s -m '%s'" % (commit.id, note))
+
 def append_branch_info(path, entry, message):
 	"""Appends Subversion branch info to Git commit messages.
 
@@ -806,8 +817,13 @@ def construct_history(path, commit_id, log):
 
 		newcommit = create_commit(metadata, parents, tree_id)
 		store_commit(path, entry.revision.number, newcommit.id)
+
 		print "\tcommit %s" % newcommit.id
 		print
+
+		# Run post commit filters
+		for commit_filter in config.get('POSTCOMMIT_FILTERS', []):
+			commit_filter(newcommit, path, entry)
 
 		commit_id = newcommit.id
 
