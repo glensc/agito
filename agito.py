@@ -523,11 +523,11 @@ def username_to_author(username):
 	"""
 	authors = config.get("AUTHORS", {})
 	default_author = config.get("DEFAULT_AUTHOR", ("%", "%@localhost"))
+	username = username or "nobody"
 
 	if username in authors:
 		name, email = authors[username]
 	else:
-		username = username or "nobody"
 		name_pattern, email_pattern = default_author
 		name = name_pattern.replace('%', username)
 		email = email_pattern.replace('%', username)
