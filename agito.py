@@ -23,7 +23,7 @@
 #
 
 from dulwich.repo import Repo
-from dulwich.objects import Blob, Commit, Tag, Tree
+from dulwich.objects import Blob, Commit, Tag, Tree, parse_timezone
 
 import os
 import pysvn
@@ -646,22 +646,28 @@ def rewrite_commit_refs(path, entry, message):
 	return message
 
 def utc_time_string(seconds):
-	"""Convert epoch seconds to a time string."""
-	return time.strftime(DATE_TIME_FORMAT, time.gmtime(seconds))
+	"""Convert epoch seconds to a time and timezone string"""
+	return time.strftime(DATE_TIME_FORMAT, time.gmtime(seconds)) + ' +0000'
 
-def utc_time_from_string(timestr):
-	"""Convert time string to epoch seconds."""
+def time_tz_from_string(timestr):
+	"""Convert time string to epoch seconds and a timezone offset."""
+
+	# split string like: '2015-04-11 15:34:24 -0200'
+	(timetext, timezonetext) = timestr.rsplit(b' ', 1)
+
 	# Parse time string and convert to epoch seconds by subtracting
 	# time.timezone (difference between local time and UTC). There's
 	# a slight issue here in that timetuple needs to be the time in
 	# the regular (non-DST) timezone.
-	timetuple = time.strptime(timestr, DATE_TIME_FORMAT)
+	timetuple = time.strptime(timetext, DATE_TIME_FORMAT)
 	timetuple = (
 		timetuple.tm_year, timetuple.tm_mon, timetuple.tm_mday,
 		timetuple.tm_hour, timetuple.tm_min, timetuple.tm_sec,
 		0, 0, 0
 	)
-	return int(time.mktime(timetuple) - time.timezone)
+	tz = parse_timezone(timezonetext)[0]
+	seconds = int(time.mktime(timetuple) - time.timezone - tz)
+	return (seconds, tz)
 
 def commit_metadata_from_entry(path, entry):
 	"""Create a metadata dictionary for the given Subversion commit.
@@ -714,15 +720,13 @@ def create_commit(metadata, parents, tree_id):
 	commit.tree = tree_id
 	commit.author = "%s <%s>" % (metadata["GIT_AUTHOR_NAME"],
 	                             metadata["GIT_AUTHOR_EMAIL"])
-	commit.author_time = \
-	    utc_time_from_string(metadata["GIT_AUTHOR_DATE"])
-	commit.author_timezone = 0
+	(commit.author_time, commit.author_timezone) = \
+	    time_tz_from_string(metadata["GIT_AUTHOR_DATE"])
 
 	commit.committer = "%s <%s>" % (metadata["GIT_COMMITTER_NAME"],
 	                                metadata["GIT_COMMITTER_EMAIL"])
-	commit.commit_time = \
-	    utc_time_from_string(metadata["GIT_COMMITTER_DATE"])
-	commit.commit_timezone = 0
+	(commit.commit_time, commit.commit_timezone) = \
+	    time_tz_from_string(metadata["GIT_COMMITTER_DATE"])
 
 	commit.encoding = "UTF-8"
 	commit.message = metadata["MESSAGE"]
