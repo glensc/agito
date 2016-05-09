@@ -645,6 +645,27 @@ def rewrite_commit_refs(path, entry, message):
 
 	return message
 
+def use_timezone(timezone):
+    """A git filter-branch filter that converts author and commit times to specifiedtimezone"""
+
+    # import locally, the pytz and dateutil Python modules are not required normally
+    import pytz
+    from dateutil.parser import parse
+
+    DATE_TIME_FORMAT_TZ = "%Y-%m-%d %H:%M:%S %z"
+    TZ = pytz.timezone(timezone)
+
+    def convert_localtime(timestr):
+        localtime = parse(timestr).astimezone(TZ)
+        return localtime.strftime(DATE_TIME_FORMAT_TZ)
+
+    def callback(path, entry, metadata, treedir):
+        # convert to local time
+        metadata['GIT_AUTHOR_DATE'] = convert_localtime(metadata['GIT_AUTHOR_DATE'])
+        metadata['GIT_COMMITTER_DATE'] = convert_localtime(metadata['GIT_COMMITTER_DATE'])
+
+    return callback
+
 def utc_time_string(seconds):
 	"""Convert epoch seconds to a time and timezone string"""
 	return time.strftime(DATE_TIME_FORMAT, time.gmtime(seconds)) + ' +0000'
